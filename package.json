@@ -1,0 +1,18 @@
+{
+  "name": "eventgallery-lambda",
+  "version": "1.0.0",
+  "description": "A lambda function which can resize images",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Sven Bluege",
+  "license": "MIT",
+  "dependencies": {
+    "async": "1.5.0",
+    "gm": "1.23.0",
+    "aws-sdk": "2.2.12",
+    "piexifjs": "git://github.com/hMatoba/piexifjs.git"
+  },
+  "bundledDependencies": ["async", "gm"]
+}
