@@ -1,1 +1,1 @@
-lambda-local -c -t 10 -l index.js -h handler -e event-samples/event.js
+lambda-local -c -t 10 -l index.js -h handler -e event-samples/event.js -p .profile
