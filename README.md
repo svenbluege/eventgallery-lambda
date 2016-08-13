@@ -18,4 +18,4 @@ aws_secret_access_key=yyyy
 
  # Local Test Execution
 
- simply run ```run.cmd``` to execute the lambda function using the event specified in the event sample data folder.
+ Copy .profile.sample to .profile and add your credentials. Then simply run ```run.cmd``` in the root project folder to execute the lambda function using the event specified in the event sample data folder.

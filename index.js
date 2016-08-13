@@ -29,7 +29,8 @@ exports.handler = function(event, context) {
 		sizes: [],
 		folder: "",
 		files: [],
-		concurrency: 1
+		concurrency: 1,
+		savelocal: false
 	}, settings = Object.assign({}, defaults, event);
 
 	console.log(JSON.stringify(settings));
@@ -69,31 +70,6 @@ exports.handler = function(event, context) {
 					});
 				}
 			});
-			// read the images to memory
-			/*fs.readFile(`${settings.folder}/${file}`, function (err, data) {
-				if (err) {
-					cb(err);
-				} else {
-
-					im(data).identify(function(err, value) {
-
-						if (err) {
-							cb(err);
-						}
-
-						cb(null, {
-							buffer: data,
-							file: file,
-							width: value.size.width,
-							height: value.size.height,
-							folder: settings.folder,
-							imageType: data.format
-						});
-
-					});
-				}
-			});*/
-
 		},
 		function(err, images){
 			if (err) {
@@ -170,16 +146,10 @@ exports.handler = function(event, context) {
 							});
 					},
 					function(buffer, callback) {
-						try {
-							fs.mkdirSync(`${image.folder}/s${width}`);
-						}catch(e) {}
+
 
 						var newData = piexif.insert(exifbytes, buffer.toString("binary"));
 						var newJpeg = new Buffer(newData, "binary");
-
-						/*fs.writeFile(`${image.folder}/s${width}/${image.file}`, newJpeg, function(err) {
-							callback(err);
-						});*/
 
 						console.log(`Uploading now to ${image.folder}/s${width}/${image.file}`);
 						s3.putObject({
@@ -189,16 +159,26 @@ exports.handler = function(event, context) {
 							"ContentType": image.contentType
 						}, function(err) {
 							console.log(`Uploading now to ${image.folder}/s${width}/${image.file} DONE`);
-							callback(err, "Upload done");
+							if (settings.savelocal) {
+								try { fs.mkdirSync(`tmp`);} catch (e) {}
+								try { fs.mkdirSync(`tmp/${image.folder}`);} catch (e) {}
+								try { fs.mkdirSync(`tmp/${image.folder}/s${width}`);} catch (e) {}
+
+								fs.writeFile(`tmp/${image.folder}/s${width}/${image.file}`, newJpeg, function (err) {
+									callback(err);
+								});
+							} else {
+								img = null;
+								newJpeg = null;
+								newData = null;
+								exifbytes = null;
+								exifObj =  null;
+								callback(err);
+							}
 						});
 
 					}
 				], function (err, result) {
-					img = null;
-					newJpeg = null;
-					newData = null;
-					exifbytes = null;
-					exifObj =  null;
 					cb(err, result);
 				});
 

@@ -4,10 +4,11 @@ module.exports = {
     "autorotate": true,
     "sharpImage": true,
     "sharpOriginalImage": false,
-    "doWatermark": true,
+    "doWatermark": false,
     "watermark" : {},
-    "sizes": [100, 500, 1000, 2050],
+    "sizes": [48, 104, 160, 288, 320, 400, 512, 640, 720, 800, 1024, 1280, 1440, 1600],
     "folder": "s3-test",
     "files": ["image.jpg"],
-    "concurrency": 2
+    "concurrency": 4,
+    "savelocal": true
 };
