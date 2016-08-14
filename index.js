@@ -1,11 +1,22 @@
-var async = require("async");
-var AWS = require("aws-sdk");
-var fs = require("fs");
-var im = require("gm").subClass({imageMagick: true});
-var s3 = new AWS.S3();
-var piexif = require("piexifjs");
+var async = require("async"),
+	AWS = require("aws-sdk"),
+	fs = require("fs"),
+	im = require("gm").subClass({imageMagick: true}),
+	s3 = new AWS.S3(),
+	piexif = require("piexifjs");
+
 
 var CONFIG = require("./config.json");
+
+function getImageType(objectContentType) {
+	if (objectContentType === "image/jpeg") {
+		return "jpeg";
+	} else if (objectContentType === "image/png") {
+		return "png";
+	} else {
+		throw new Error("unsupported objectContentType " + objectContentType);
+	}
+}
 
 function cross(left, right) {
 	var res = [];
@@ -19,19 +30,23 @@ function cross(left, right) {
 
 exports.handler = function(event, context) {
 	var defaults =  {
-		bucketOriginals : "",
-		bucketThumbnails : "",
-		autorotate: true,
-		sharpImage: true,
-		sharpOriginalImage: false,
-		doWatermark: false,
-		watermark : {},
-		sizes: [],
-		folder: "",
-		files: [],
-		concurrency: 1,
-		savelocal: false
-	}, settings = Object.assign({}, defaults, event);
+			bucketOriginals : "",
+			bucketThumbnails : "",
+			autorotate: true,
+			sharpImage: true,
+			sharpOriginalImage: false,
+			doWatermark: false,
+			watermark : {
+				src : ""
+			},
+			sizes: [],
+			folder: "",
+			files: [],
+			concurrency: 1,
+			savelocal: false
+		},
+		settings = Object.assign({}, defaults, event),
+		resultETags = {};
 
 	console.log(JSON.stringify(settings));
 
@@ -63,7 +78,7 @@ exports.handler = function(event, context) {
 							width: value.size.width,
 							height: value.size.height,
 							folder: settings.folder,
-							imageType: 'jpeg',
+							imageType: getImageType(data.ContentType),
 							contentType: data.ContentType,
 						});
 
@@ -139,7 +154,7 @@ exports.handler = function(event, context) {
 						}
 						console.log("do watermarking now");
 						im(buffer)
-							.composite('watermark.jpg')
+							.composite(settings.watermark.src)
 							.geometry('+100+150')
 							.toBuffer(function(err, buffer) {
 								callback(err, buffer);
@@ -150,15 +165,22 @@ exports.handler = function(event, context) {
 
 						var newData = piexif.insert(exifbytes, buffer.toString("binary"));
 						var newJpeg = new Buffer(newData, "binary");
+						var key = `${image.folder}/s${width}/${image.file}`;
 
-						console.log(`Uploading now to ${image.folder}/s${width}/${image.file}`);
+						console.log(`Uploading now to ${key}`);
 						s3.putObject({
 							"Bucket": settings.bucketThumbnails,
-							"Key": `${image.folder}/s${width}/${image.file}`,
+							"Key": key,
 							"Body": newJpeg,
 							"ContentType": image.contentType
-						}, function(err) {
-							console.log(`Uploading now to ${image.folder}/s${width}/${image.file} DONE`);
+						}, function(err, data) {
+							console.log(`Uploading now to ${key} DONE`);
+
+							if (!resultETags[image.file]) {
+								resultETags[image.file] = {};
+							}
+							resultETags[image.file][key] = data.ETag.replace(/"/g, "");
+
 							if (settings.savelocal) {
 								try { fs.mkdirSync(`tmp`);} catch (e) {}
 								try { fs.mkdirSync(`tmp/${image.folder}`);} catch (e) {}
@@ -173,21 +195,23 @@ exports.handler = function(event, context) {
 								newData = null;
 								exifbytes = null;
 								exifObj =  null;
-								callback(err);
+								callback(err, "Done");
 							}
 						});
 
 					}
 				], function (err, result) {
+
 					cb(err, result);
 				});
 
 			}, function(err) {
+
 				if (err) {
 					console.log(err);
 					context.fail(err);
 				} else {
-					context.succeed(null, "Resizing Done");
+					context.succeed(resultETags);
 				}
 			});
 		}
