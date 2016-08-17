@@ -3,11 +3,14 @@ var async = require("async"),
 	fs = require("fs"),
 	im = require("gm").subClass({imageMagick: true}),
 	s3 = new AWS.S3(),
+	spawn = require('child_process').spawn,
+	temp = require('temp');
 	piexif = require("piexifjs");
+
+//temp.track();
 
 const FORMAT_JPEG = "jpeg";
 const FORMAT_PNG = "png";
-
 
 var CONFIG = require("./config.json");
 
@@ -61,44 +64,104 @@ exports.handler = function(event, context) {
 		settings = Object.assign({}, defaults, event),
 		resultETags = {original: {}, thumbnails: {}};
 
-	console.log(JSON.stringify(settings));
 
-
+	console.log(JSON.stringify(settings, null, 2));
 
 	async.mapLimit(settings.files, settings.concurrency,
 		function(file, cb) {
-			s3.getObject({
-				"Bucket": settings.bucketOriginals,
-				"Key": settings.folder + '/' + file
-			}, function(err, data) {
-				if (err) {
-					console.log("Error getting data from s3" + err);
-					cb(err);
-				} else {
-					console.log("Received the original file");
-					im(data.Body).identify(function(err, value) {
 
-						if (err) {
-							console.log("Error during identify " + err);
-							cb(err);
+			async.waterfall(
+				[
+					function(callback) {
+						s3.getObject({
+								"Bucket": settings.bucketOriginals,
+								"Key": settings.folder + '/' + file
+							}, function(err, dataS3) {
+								callback(err, dataS3);
+							}
+						);
+					},
+					function(dataS3, callback) {
+						var img = im(dataS3.Body);
+						img.identify(function(err, identifyData){
+							callback(err, img, dataS3, identifyData);
+						});
+					},
+					function(image, dataS3, identifyData, callback) {
+						// save the ICC profile
+						var iccProfile = {path: temp.path({prefix: file, suffix: ".icc"})},
+							convert;
+
+						// fixes strange windows issue with double backslash
+						iccProfile['path'] = iccProfile['path'].replace(/\\/g,"\\");
+
+						convert = spawn('convert', [
+							"-",
+							"-verbose",
+							"icc:"+ iccProfile['path']
+
+						]);
+
+						convert.stdin.write(dataS3.Body);
+						convert.stdin.end();
+
+						var b1 = [];
+						var b2 = [];
+						convert.stdout.on('data', function(data){b1.push(data)})
+						convert.stderr.on('data', function(data){b2.push(data)})
+
+						convert.on('close', function (code) {
+
+							console.log(Buffer.concat(b1).toString('ascii'));
+							console.log(Buffer.concat(b2).toString('ascii'));
+
+							if (code !== 0) {
+								callback(null, image, dataS3, identifyData, undefined);
+							} else {
+								console.log(code, iccProfile['path']);
+								callback(null, image, dataS3, identifyData, iccProfile);
+							}
+						});
+					},
+					function(image, dataS3, identifyData, iccProfile, callback) {
+						var imageType = getImageType(dataS3.ContentType),
+							exifBytes = null;
+
+						resultETags.original[file] = cleanETag(dataS3.ETag);
+						console.log("Identified the file " + file);
+
+						// save the metadata
+						{
+							if (imageType === FORMAT_JPEG) {
+								var jpeg = dataS3.Body,
+									data = jpeg.toString("binary"),
+									exifObj = piexif.load(data);
+
+								delete exifObj['thumbnail'];
+								exifBytes = piexif.dump(exifObj);
+
+								jpeg = null;
+								data = null;
+								exifObj = null;
+							}
 						}
 
-						resultETags.original[file] = cleanETag(data.ETag);
-						console.log("Identified the file");
-
-						cb(null, {
-							buffer: data.Body,
+						callback(null, {
+							buffer: dataS3.Body,
 							file: file,
-							width: value.size.width,
-							height: value.size.height,
+							width: identifyData.size.width,
+							height: identifyData.size.height,
 							folder: settings.folder,
-							imageType: getImageType(data.ContentType),
-							contentType: data.ContentType,
+							imageType: imageType,
+							contentType: dataS3.ContentType,
+							jpegExifBytes: exifBytes,
+							iccProfile: iccProfile
 						});
-
-					});
+					}
+				],function (err, result) {
+					cb(err, result);
 				}
-			});
+			);
 		},
 		function(err, images){
 			if (err) {
@@ -115,18 +178,6 @@ exports.handler = function(event, context) {
 				 	image = resizePair[1],
 				 	imagepath = `${image.folder}/${image.file}`,
 					img;
-
-				// save the metadata
-				if (image.imageType === FORMAT_JPEG) {
-					var jpeg = image.buffer;
-					var data = jpeg.toString("binary");
-					var exifObj = piexif.load(data);
-					exifObj['thumbnail'] = null;
-					var exifbytes = piexif.dump(exifObj);
-					jpeg = null;
-					data = null;
-					exifObj = null;
-				}
 
 				img = im(image.buffer);
 
@@ -178,15 +229,47 @@ exports.handler = function(event, context) {
 					},
 					function(buffer, callback) {
 
-						var newJpeg = buffer;
+						if (image.iccProfile !== undefined) {
+
+								var commandsOptions = [
+									"-",
+									"-profile",
+									image.iccProfile['path'],
+									"-"],
+								convert = spawn('convert', commandsOptions),
+								newBuffer = [];
+
+							convert.stdio[1].on('data', (data) => {
+								newBuffer.push(data);
+							});
+
+							convert.stdin.write(buffer);
+							convert.stdin.end();
+
+							convert.on('close', function (code) {
+								console.log('Finished writing ICC profile for ' + image.file);
+								var result = Buffer.concat(newBuffer);
+
+								if (code === 0) {
+									callback(null, result);
+								} else {
+									callback("error code: " + code);
+								}
+							});
+						} else {
+							callback(null, buffer);
+						}
+					},
+					function(buffer, callback) {
+
+						var newJpeg = buffer,
+							key = `${image.folder}/s${width}/${image.file}`;
 
 						if (image.imageType == FORMAT_JPEG) {
-							newData = piexif.insert(exifbytes, buffer.toString("binary"));
+							newData = piexif.insert(image.jpegExifBytes, buffer.toString("binary"));
 							newJpeg = new Buffer(newData, "binary");
 							newData = null;
 						}
-
-						var key = `${image.folder}/s${width}/${image.file}`;
 
 						console.log(`Uploading now to ${key}`);
 						s3.putObject({
@@ -214,8 +297,6 @@ exports.handler = function(event, context) {
 							} else {
 								img = null;
 								newJpeg = null;
-								exifbytes = null;
-								exifObj =  null;
 								callback(err, "Done");
 							}
 						});

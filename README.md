@@ -3,6 +3,10 @@ Amazon Lambda hosted image processor to calculate thumbnails from/to Amazon S3
 
 # Local Test Setup
 
+Install *ImageMagick* including the leagcy utilities.
+
+Prepare the NodeJS stuff: 
+
     npm install  -g lambda-local
     npm install
 
