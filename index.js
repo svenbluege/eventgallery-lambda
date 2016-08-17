@@ -5,14 +5,17 @@ var async = require("async"),
 	s3 = new AWS.S3(),
 	piexif = require("piexifjs");
 
+const FORMAT_JPEG = "jpeg";
+const FORMAT_PNG = "png";
+
 
 var CONFIG = require("./config.json");
 
 function getImageType(objectContentType) {
 	if (objectContentType === "image/jpeg") {
-		return "jpeg";
+		return FORMAT_JPEG;
 	} else if (objectContentType === "image/png") {
-		return "png";
+		return FORMAT_PNG;
 	} else {
 		throw new Error("unsupported objectContentType " + objectContentType);
 	}
@@ -26,6 +29,16 @@ function cross(left, right) {
 		});
 	});
 	return res;
+}
+
+/**
+ * remove double quoutes at the beginning and the end of an etag
+ *
+ * @param $etag
+ * @returns {void|XML|string|*}
+ */
+function cleanETag($etag) {
+	return $etag.replace(/"/g, "");
 }
 
 exports.handler = function(event, context) {
@@ -46,7 +59,7 @@ exports.handler = function(event, context) {
 			savelocal: false
 		},
 		settings = Object.assign({}, defaults, event),
-		resultETags = {};
+		resultETags = {original: {}, thumbnails: {}};
 
 	console.log(JSON.stringify(settings));
 
@@ -70,6 +83,7 @@ exports.handler = function(event, context) {
 							cb(err);
 						}
 
+						resultETags.original[file] = cleanETag(data.ETag);
 						console.log("Identified the file");
 
 						cb(null, {
@@ -103,14 +117,16 @@ exports.handler = function(event, context) {
 					img;
 
 				// save the metadata
-				var jpeg = image.buffer;
-				var data = jpeg.toString("binary");
-				var exifObj = piexif.load(data);
-				exifObj['thumbnail'] = null;
-				var exifbytes = piexif.dump(exifObj);
-				jpeg = null;
-				data = null;
-				exifObj = null;
+				if (image.imageType === FORMAT_JPEG) {
+					var jpeg = image.buffer;
+					var data = jpeg.toString("binary");
+					var exifObj = piexif.load(data);
+					exifObj['thumbnail'] = null;
+					var exifbytes = piexif.dump(exifObj);
+					jpeg = null;
+					data = null;
+					exifObj = null;
+				}
 
 				img = im(image.buffer);
 
@@ -162,9 +178,14 @@ exports.handler = function(event, context) {
 					},
 					function(buffer, callback) {
 
+						var newJpeg = buffer;
 
-						var newData = piexif.insert(exifbytes, buffer.toString("binary"));
-						var newJpeg = new Buffer(newData, "binary");
+						if (image.imageType == FORMAT_JPEG) {
+							newData = piexif.insert(exifbytes, buffer.toString("binary"));
+							newJpeg = new Buffer(newData, "binary");
+							newData = null;
+						}
+
 						var key = `${image.folder}/s${width}/${image.file}`;
 
 						console.log(`Uploading now to ${key}`);
@@ -172,14 +193,15 @@ exports.handler = function(event, context) {
 							"Bucket": settings.bucketThumbnails,
 							"Key": key,
 							"Body": newJpeg,
-							"ContentType": image.contentType
+							"ContentType": image.contentType,
+							"ACL": "public-read"
 						}, function(err, data) {
-							console.log(`Uploading now to ${key} DONE`);
+							console.log(`Uploading now to ${key} DONE. ${err}`);
 
-							if (!resultETags[image.file]) {
-								resultETags[image.file] = {};
+							if (!resultETags.thumbnails[image.file]) {
+								resultETags.thumbnails[image.file] = {};
 							}
-							resultETags[image.file][key] = data.ETag.replace(/"/g, "");
+							resultETags.thumbnails[image.file][key] = cleanETag(data.ETag);
 
 							if (settings.savelocal) {
 								try { fs.mkdirSync(`tmp`);} catch (e) {}
@@ -192,7 +214,6 @@ exports.handler = function(event, context) {
 							} else {
 								img = null;
 								newJpeg = null;
-								newData = null;
 								exifbytes = null;
 								exifObj =  null;
 								callback(err, "Done");
