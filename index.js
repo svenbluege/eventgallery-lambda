@@ -4,7 +4,7 @@ var async = require("async"),
 	im = require("gm").subClass({imageMagick: true}),
 	s3 = new AWS.S3(),
 	spawn = require('child_process').spawn,
-	temp = require('temp');
+	temp = require('temp'),
 	piexif = require("piexifjs");
 
 //temp.track();
@@ -63,7 +63,6 @@ exports.handler = function(event, context) {
 		},
 		settings = Object.assign({}, defaults, event),
 		resultETags = {original: {}, thumbnails: {}};
-
 
 	console.log(JSON.stringify(settings, null, 2));
 
@@ -126,8 +125,36 @@ exports.handler = function(event, context) {
 					function(image, dataS3, identifyData, iccProfile, callback) {
 						var imageType = getImageType(dataS3.ContentType),
 							exifBytes = null;
+						//	console.log(JSON.stringify(identifyData, null, 2));
 
-						resultETags.original[file] = cleanETag(dataS3.ETag);
+						var focalLength = '';
+						if (identifyData.Properties['exif:FocalLength']) {
+							var numbers = identifyData.Properties['exif:FocalLength'].split('/');
+							focalLength = parseInt(numbers[0]) / parseInt(numbers[1]);
+						}
+						
+						var fstop = '';
+						if (identifyData.Properties['exif:FNumber']) {
+							var numbers = identifyData.Properties['exif:FNumber'].split('/');
+							fstop = parseInt(numbers[0]) / parseInt(numbers[1]);
+						}
+
+						resultETags.original[file] = {
+							'etag' : cleanETag(dataS3.ETag),
+							'size': identifyData.size,
+							'exif': {
+								'model': identifyData.Properties['exif:Model'],
+								'focallength': focalLength,
+								'fstop': fstop,
+								'exposuretime': identifyData.Properties['exif:ExposureTime'],
+								'iso': identifyData.Properties['exif:ISOSpeedRatings']
+							}
+								
+						};
+							
+						
+						
+						
 						console.log("Identified the file " + file);
 
 						// save the metadata
