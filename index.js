@@ -53,7 +53,16 @@ exports.handler = function(event, context) {
 			sharpOriginalImage: false,
 			doWatermark: false,
 			watermark : {
-				src : ""
+				src : "",
+				margin : {
+					horizontal: 0,
+					vertical: 0
+				},
+				opacity: 0,
+				position: "mc", //top middle bottom, left center right
+				mode: "prop", //prop, fill, fit
+				mode_prop: 50, // 50% of the image
+				thumbnailThreshold: 0 // don't apply a watermarkt to images smaller than this value
 			},
 			sizes: [],
 			folder: "",
