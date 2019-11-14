@@ -31,3 +31,5 @@ sure the new function has permission to read from the original bucket and write 
 putObjectACL to the thumbnail bucket. Create an API mapping so your function is usable via URL.
 
 Even on Amazon Lambda the thumbnail creation takes a while. I recommend to set 1024MB to get enough CPU power.
+
+Node 10.x does not longer support ImageMagik out of the box. But you can add image-magick.zip as a Lambda Layer to your function. You can build the layer yourself using https://github.com/serverlesspub/imagemagick-aws-lambda-2

@@ -147,7 +147,7 @@ exports.handler = function(event, context) {
 							var numbers = identifyData.Properties['exif:FNumber'].split('/');
 							fstop = parseInt(numbers[0]) / parseInt(numbers[1]);
 						}
-
+						
 						resultETags.original[file] = {
 							'etag' : cleanETag(dataS3.ETag),
 							'size': identifyData.size,
