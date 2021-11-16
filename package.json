@@ -11,7 +11,7 @@
   "dependencies": {
     "async": "1.5.0",
     "gm": "1.23.0",
-    "aws-sdk": "2.2.12",
+    "aws-sdk": "2.814.0",
     "piexifjs": "git://github.com/hMatoba/piexifjs.git",
     "temp": "0.8.3"
   },
