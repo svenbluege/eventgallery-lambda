@@ -9,7 +9,7 @@
   "author": "Sven Bluege",
   "license": "MIT",
   "dependencies": {
-    "async": "1.5.0",
+    "async": "2.6.4",
     "gm": "1.23.0",
     "aws-sdk": "2.2.12",
     "piexifjs": "git://github.com/hMatoba/piexifjs.git",
