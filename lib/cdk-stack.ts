@@ -37,7 +37,7 @@ export class CdkEventgalleryImageResizeStack extends cdk.Stack {
             },
         });
 
-        const api = new apigateway.RestApi(this, 'api', {
+        const api = new apigateway.RestApi(this, 'resize-api', {
             description: 'Eventgallery Resize api gateway',
             deployOptions: {
                 stageName: 'prod',
