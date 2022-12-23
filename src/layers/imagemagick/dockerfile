@@ -1,0 +1,15 @@
+FROM amazon/aws-sam-cli-build-image-nodejs14.x
+
+ENV ASSET_DIR /asset
+ENV ASSET_INPUT /asset-input
+
+RUN mkdir -p $ASSET_DIR
+RUN mkdir -p $ASSET_INPUT
+
+COPY build.sh $ASSET_INPUT
+RUN $ASSET_INPUT/build.sh
+RUN $ASSET_DIR/bin/identify -list format > $ASSET_DIR/supported_identify_formats.txt
+RUN rm -r $ASSET_DIR/share
+RUN rm -r $ASSET_DIR/lib
+RUN rm -r $ASSET_DIR/include
+RUN rm -r $ASSET_DIR/etc

@@ -1,5 +1,5 @@
 /.idea
-/deploy.zip
+/cdk.out
 /node_modules
-/.profile
 /tmp
+/logfile.txt

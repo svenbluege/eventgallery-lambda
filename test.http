@@ -1,0 +1,72 @@
+### Test function
+POST http://127.0.0.1:3000/resize
+Content-Type: application/json
+
+{
+    "region": "eu-central-1",
+    "bucketOriginals" : "eventgallery-images-eu-test-original",
+    "bucketThumbnails" : "eventgallery-images-eu-test-resized",
+    "autorotate": true,
+    "sharpImage": true,
+    "sharpOriginalImage": false,
+    "doWatermark": true,
+    "watermark" : {
+        "src" : "https://www.svenbluege.de/images/SvenBluege-Photography-Logo.png"
+    },
+    "sizes": [1600],
+    "folder": "s3-test",
+    "files": ["test_icc.jpg", "image_with_icc2.jpg"],
+    "concurrency": 16,
+    "savelocal": true
+}
+
+### Test function with single file
+POST http://127.0.0.1:3000/resize
+Content-Type: application/json
+
+{
+  "region": "eu-central-1",
+  "bucketOriginals" : "eventgallery-images-eu-test-original",
+  "bucketThumbnails" : "eventgallery-images-eu-test-resized",
+  "autorotate": true,
+  "sharpImage": true,
+  "sharpOriginalImage": false,
+  "doWatermark": true,
+  "watermark" : {
+    "src" : "https://www.svenbluege.de/images/SvenBluege-Photography-Logo.png"
+  },
+  "sizes": [1600],
+  "folder": "s3-test",
+  "files": ["test_icc.jpg"],
+  "concurrency": 16,
+  "savelocal": true
+}
+
+
+### A very big image
+POST http://127.0.0.1:3000/resize
+
+{"region":"eu-central-1",
+"bucketOriginals":"eventgallery-images-eu-test-original",
+"bucketThumbnails":"eventgallery-images-eu-test-resized",
+"autorotate":true,
+"sharpImage":true,
+"sharpOriginalImage":false,
+"doWatermark":false,
+"sizes":[48,104,160,288,320,400,512,640,720,800,1024,1280,1440,1600],
+"folder":"s3-test",
+"files":["20151014_154834.jpg"]}
+
+### A very big image 2
+POST http://127.0.0.1:3000/resize
+
+{"region":"eu-central-1",
+"bucketOriginals":"eventgallery-images-eu-test-original",
+"bucketThumbnails":"eventgallery-images-eu-test-resized",
+"autorotate":true,
+"sharpImage":true,
+"sharpOriginalImage":false,
+"doWatermark":false,
+"sizes":[48,104,160,288,320,400,512,640,720,800,1024,1280,1440,1600],
+"folder":"s3-test",
+"files":["20151014_154834-XSS.jpg"]}
