@@ -1,9 +1,0 @@
-{
-	"concurrency": 1,
-	"unsharp": {
-		"radius": 2,
-		"sigma" : 0.5,
-		"amount": 0.5,
-		"threshold": 0
-	}
-}
